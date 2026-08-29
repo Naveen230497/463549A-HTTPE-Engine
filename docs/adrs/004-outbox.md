@@ -1,0 +1,1 @@
+# ADR 4: Transactional Outbox
