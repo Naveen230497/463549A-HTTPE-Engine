@@ -1,0 +1,1 @@
+CREATE TABLE merchant_settlements (settlement_id UUID PRIMARY KEY, merchant_account_id UUID REFERENCES accounts(account_id) NOT NULL, total_amount NUMERIC(18,4) NOT NULL, status VARCHAR(20) NOT NULL, settlement_date DATE NOT NULL, created_at TIMESTAMPTZ NOT NULL);

@@ -1,0 +1,10 @@
+@startuml
+title P2P Failure - Downstream DB Timeout
+actor User
+participant API
+participant AccountDB
+User -> API: Transfer(100)
+API -> AccountDB: UpdateBalance
+AccountDB --> API: Timeout (503)
+API --> User: 503 Service Unavailable (Retry later)
+@enduml

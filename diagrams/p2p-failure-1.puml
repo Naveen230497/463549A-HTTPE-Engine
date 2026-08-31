@@ -1,0 +1,10 @@
+@startuml
+title P2P Failure - Insufficient Funds
+actor User
+participant API
+participant AccountDB
+User -> API: Transfer(100)
+API -> AccountDB: CheckBalance
+AccountDB --> API: Balance = 50
+API --> User: 400 Bad Request (Insufficient Funds)
+@enduml

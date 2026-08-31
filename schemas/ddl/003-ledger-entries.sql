@@ -1,0 +1,1 @@
+CREATE TABLE ledger_entries (entry_id UUID PRIMARY KEY, transaction_id UUID REFERENCES transactions(transaction_id) NOT NULL, account_id UUID REFERENCES accounts(account_id) NOT NULL, entry_type VARCHAR(20) NOT NULL, amount NUMERIC(18,4) NOT NULL, running_balance NUMERIC(18,4) NOT NULL, created_at TIMESTAMPTZ NOT NULL);

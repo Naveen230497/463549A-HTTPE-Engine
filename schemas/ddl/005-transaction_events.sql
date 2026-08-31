@@ -1,0 +1,1 @@
+CREATE TABLE transaction_events (event_id UUID PRIMARY KEY, transaction_id UUID REFERENCES transactions(transaction_id) NOT NULL, event_type VARCHAR(50) NOT NULL, payload JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL);

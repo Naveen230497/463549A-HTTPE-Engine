@@ -1,0 +1,49 @@
+@startuml
+title P2P Payment Transaction Flow (Saga Pattern)
+actor User
+participant "API Gateway" as API
+participant "Payment Service" as PS
+participant "Redis (Idempotency)" as Redis
+participant "Fraud Service" as Fraud
+participant "Temporal (Orchestrator)" as Temp
+participant "Account Service" as AS
+database "PostgreSQL (Sharded)" as DB
+participant "Kafka" as Kafka
+participant "Notification Service" as Notif
+
+User -> API: POST /v1/payments/p2p\n(idempotency_key)
+API -> PS: Route Request
+PS -> Redis: GET idempotency_key
+alt Key Exists
+    Redis --> PS: Return previous response
+    PS --> API: 200 OK (Cached)
+    API --> User: 200 OK
+else Key Not Found
+    PS -> Fraud: gRPC Evaluate(transaction_data)
+    Fraud --> PS: Result: ALLOW
+    PS -> Temp: Start Saga(P2P_Payment)
+    Temp -> AS: Execute Debit(sender_id, amount)
+    AS -> DB: UPDATE accounts SET balance = balance - amount WHERE id = sender_id AND version = X
+    DB --> AS: Success (OCC version + 1)
+    AS --> Temp: Debit Successful
+    
+    Temp -> AS: Execute Credit(receiver_id, amount)
+    AS -> DB: UPDATE accounts SET balance = balance + amount WHERE id = receiver_id AND version = Y
+    DB --> AS: Success (OCC version + 1)
+    AS --> Temp: Credit Successful
+    
+    Temp -> AS: Execute LedgerEntries(sender_id, receiver_id, amount)
+    AS -> DB: INSERT INTO ledger_entries
+    DB --> AS: Success
+    AS --> Temp: Ledger Successful
+    
+    Temp --> PS: Saga Completed
+    PS -> Redis: SET idempotency_key (24h TTL)
+    PS -> Kafka: Publish(transaction_completed_event)
+    PS --> API: 200 OK (Success)
+    API --> User: 200 OK
+    
+    Kafka -> Notif: Consume(transaction_completed_event)
+    Notif -> User: WebSocket / Push Notification
+end
+@enduml

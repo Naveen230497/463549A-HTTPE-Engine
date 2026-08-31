@@ -1,0 +1,9 @@
+# Project Reflection
+
+The 15-day sprint to design the High-Throughput Transaction Processing Engine (HTTPE) was an intense exercise in balancing theoretical distributed systems concepts with practical operational and budget constraints. The most significant realization during this project was that scaling from 1,200 to 12,000 TPS is not a 10x hardware problem; it is a fundamental paradigm shift in architecture.
+
+My initial instinct was to throw more hardware at the PostgreSQL database or implement aggressive connection pooling. However, the requirement to handle cross-account P2P payments at that scale quickly revealed the limitations of traditional ACID transactions. Moving to a sharded architecture (PostgreSQL + Citus) solved the write bottleneck but created the distributed transaction problem. I had to learn and implement the Saga pattern (via Temporal.io) to ensure transactional integrity across shards without the crippling performance impact of Two-Phase Commits (2PC).
+
+The most challenging trade-off was designing the Concurrency Control mechanism. While pessimistic locking is easier to reason about, it guarantees deadlocks at 12k TPS. Shifting to Optimistic Concurrency Control (OCC) required carefully designing retry loops with exponential backoff and relying on the application layer to catch `0 rows updated` responses. Proving that OCC prevents the write-skew anomaly was the most difficult but rewarding technical hurdle.
+
+Finally, managing the performance budget to hit the sub-100ms p99 latency target forced me to ruthless slice the synchronous request path. Pushing ledger writing and notifications to asynchronous Kafka consumers, and forcing the Fraud Detection service into a strict 15ms circuit-breaker box, demonstrated how enterprise fintech systems actually maintain responsiveness under extreme load.

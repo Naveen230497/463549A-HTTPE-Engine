@@ -1,0 +1,10 @@
+@startuml
+title P2P Failure - Fraud Block
+actor User
+participant API
+participant FraudService
+User -> API: Transfer(10000)
+API -> FraudService: Analyze()
+FraudService --> API: Block (High Risk)
+API --> User: 403 Forbidden (Blocked by Security)
+@enduml

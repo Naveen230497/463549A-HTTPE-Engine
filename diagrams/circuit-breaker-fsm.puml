@@ -1,0 +1,26 @@
+@startuml
+title Circuit Breaker Finite State Machine (FSM)
+
+state Closed {
+  Closed : API Requests flow normally
+  Closed : Failure count = 0
+}
+
+state Open {
+  Open : API Requests blocked instantly
+  Open : Return 503 Fast Failure
+}
+
+state HalfOpen {
+  HalfOpen : Allow limited test requests
+  HalfOpen : Check if downstream recovered
+}
+
+[*] --> Closed
+
+Closed --> Open : Failures > Threshold (e.g. 5 errors)
+Open --> HalfOpen : Timeout expires (e.g. 30s)
+HalfOpen --> Closed : Test request succeeds
+HalfOpen --> Open : Test request fails
+
+@enduml

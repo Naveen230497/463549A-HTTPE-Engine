@@ -1,0 +1,28 @@
+@startuml
+title Batch Merchant Settlement Flow
+participant "Cron / Scheduler" as Cron
+participant "Settlement Service" as SS
+participant "Account Service" as AS
+database "PostgreSQL (Sharded)" as DB
+participant "Kafka" as Kafka
+participant "Notification Service" as Notif
+
+Cron -> SS: Trigger BatchSettlement(merchant_tier)
+SS -> DB: SELECT * FROM merchant_settlements WHERE status = 'PENDING' LIMIT 100000
+DB --> SS: Return batch records
+
+loop Every 1000 records
+    SS -> AS: ProcessSettlementBatch(records)
+    AS -> DB: BEGIN TRANSACTION
+    AS -> DB: Aggregate debits from settlement_pool
+    AS -> DB: UPDATE accounts SET balance = balance + batch_amount WHERE id = merchant_id
+    AS -> DB: UPDATE merchant_settlements SET status = 'COMPLETED'
+    AS -> DB: INSERT INTO ledger_entries
+    DB --> AS: COMMIT
+    AS --> SS: Batch Processed
+end
+
+SS -> Kafka: Publish(settlement_batch_completed)
+Kafka -> Notif: Consume()
+Notif -> Merchant: Email / Webhook (Settlement Report)
+@enduml

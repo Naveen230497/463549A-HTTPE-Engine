@@ -1,0 +1,29 @@
+@startuml
+title Database Failover Flow (RTO < 30s)
+actor "Patroni (HA Manager)" as Patroni
+database "PostgreSQL (Primary)" as DB1
+database "PostgreSQL (Replica)" as DB2
+participant "PgBouncer (Connection Pooler)" as Pool
+participant "Consul/Etcd (DCS)" as DCS
+participant "Account Service" as AS
+
+DB1 -> DB2: Streaming WAL Replication
+Note over DB1, DB2: Normal Operation
+
+DB1 !!-> DCS: Node Crash (Heartbeat loss)
+Patroni -> DCS: Detects leader key expiration
+Patroni -> DB2: Promote to Primary
+DB2 --> Patroni: Promotion Successful
+Patroni -> DCS: Update Leader Key to DB2 IP
+
+DCS -> Pool: Configuration change trigger
+Pool -> Pool: Reload configuration (point to DB2)
+Pool -> DB1: Terminate existing connections (if any survive)
+
+AS -> Pool: Execute Query
+Pool -> DB2: Route to new Primary
+DB2 --> Pool: Result
+Pool --> AS: Success
+
+Note over AS, DB2: Failover complete within 30 seconds. In-flight transactions retry safely due to OCC.
+@enduml

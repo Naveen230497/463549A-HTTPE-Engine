@@ -1,0 +1,120 @@
+Project HTTPE {
+  database_type: 'PostgreSQL'
+  Note: 'High-Throughput Transaction Processing Engine Schema'
+}
+
+Enum account_type {
+  SAVINGS
+  CURRENT
+  WALLET
+  MERCHANT
+  SETTLEMENT_POOL
+}
+
+Enum account_status {
+  ACTIVE
+  FROZEN
+  SUSPENDED
+  CLOSED
+}
+
+Enum account_tier {
+  BASIC
+  PREMIUM
+  MERCHANT
+}
+
+Enum transaction_type {
+  P2P
+  MERCHANT_PAYMENT
+  SETTLEMENT
+  REVERSAL
+  FEE
+}
+
+Enum transaction_status {
+  INITIATED
+  PROCESSING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+Table users {
+  user_id UUID [primary key]
+  kyc_status varchar [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table accounts {
+  account_id UUID [primary key, note: 'UUIDv7 for time-ordered distribution']
+  user_id UUID [not null, ref: > users.user_id]
+  account_type account_type [not null]
+  currency char(3) [not null, default: 'INR']
+  available_balance numeric(18,4) [not null]
+  ledger_balance numeric(18,4) [not null]
+  version bigint [not null, default: 1, note: 'OCC version counter']
+  status account_status [not null]
+  tier account_tier [not null]
+  shard_key integer [not null, note: 'hash(account_id) mod N for routing']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table transactions {
+  transaction_id UUID [primary key, note: 'UUIDv7']
+  idempotency_key varchar(128) [unique, not null, note: '24hr TTL']
+  transaction_type transaction_type [not null]
+  source_account_id UUID [ref: > accounts.account_id]
+  destination_account_id UUID [ref: > accounts.account_id]
+  amount numeric(18,4) [not null]
+  status transaction_status [not null]
+  saga_id UUID [not null]
+  failure_reason varchar(500)
+  created_at timestamptz [not null]
+  completed_at timestamptz
+  metadata jsonb [default: '{}']
+}
+
+Table ledger_entries {
+  entry_id UUID [primary key]
+  transaction_id UUID [ref: > transactions.transaction_id]
+  account_id UUID [ref: > accounts.account_id]
+  entry_type varchar(10) [not null, note: 'DEBIT or CREDIT']
+  amount numeric(18,4) [not null]
+  balance_after numeric(18,4) [not null]
+  created_at timestamptz [not null]
+}
+
+Table fraud_rules {
+  rule_id UUID [primary key]
+  rule_name varchar(100) [not null]
+  parameters jsonb [not null]
+  is_active boolean [default: true]
+}
+
+Table merchant_settlements {
+  settlement_id UUID [primary key]
+  merchant_account_id UUID [ref: > accounts.account_id]
+  batch_amount numeric(18,4) [not null]
+  status varchar(20) [not null, note: 'PENDING or COMPLETED']
+  created_at timestamptz [not null]
+  processed_at timestamptz
+}
+
+Table transaction_events {
+  event_id UUID [primary key]
+  transaction_id UUID [ref: > transactions.transaction_id]
+  saga_state varchar(50) [not null]
+  created_at timestamptz [not null]
+}
+
+Table notification_log {
+  log_id UUID [primary key]
+  user_id UUID [ref: > users.user_id]
+  transaction_id UUID
+  notification_type varchar(20) [not null]
+  delivery_status varchar(20) [not null]
+  sent_at timestamptz [not null]
+}

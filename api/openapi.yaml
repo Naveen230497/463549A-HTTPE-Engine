@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: PayScale HTTPE API
+  description: High-Throughput Transaction Processing Engine API for P2P payments and merchant settlements.
+  version: 1.0.0
+servers:
+  - url: https://api.payscale.local/v1
+    description: Production API Gateway
+paths:
+  /payments/p2p:
+    post:
+      summary: Initiate a P2P Payment
+      description: Initiates a transfer from a sender to a receiver. Must include an Idempotency-Key.
+      operationId: createP2pPayment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: X-Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/P2PPaymentRequest'
+      responses:
+        '202':
+          description: Payment Accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: Bad Request (Invalid input)
+        '409':
+          description: Conflict (Idempotency key collision / Concurrent processing)
+
+  /accounts/{account_id}/transactions:
+    get:
+      summary: List account transactions
+      description: Returns a paginated list of transactions for an account using cursor-based pagination.
+      operationId: getAccountTransactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: account_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          description: Cursor for pagination (typically a base64 encoded transaction_id or timestamp)
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionListResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    P2PPaymentRequest:
+      type: object
+      required:
+        - sender_account_id
+        - receiver_account_id
+        - amount
+        - currency
+      properties:
+        sender_account_id:
+          type: string
+          format: uuid
+        receiver_account_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        currency:
+          type: string
+          default: INR
+          minLength: 3
+          maxLength: 3
+
+    PaymentResponse:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PROCESSING, COMPLETED, FAILED]
+        estimated_completion_time:
+          type: string
+          format: date-time
+
+    TransactionListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionRecord'
+        next_cursor:
+          type: string
+          nullable: true
+
+    TransactionRecord:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
